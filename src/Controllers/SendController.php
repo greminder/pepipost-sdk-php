@@ -7,6 +7,7 @@
 
 namespace PepipostLib\Controllers;
 
+use CoreInterfaces\Core\Request\RequestMethod;
 use PepipostLib\APIException;
 use PepipostLib\APIHelper;
 use PepipostLib\Configuration;
@@ -17,6 +18,7 @@ use PepipostLib\Http\HttpResponse;
 use PepipostLib\Http\HttpMethod;
 use PepipostLib\Http\HttpContext;
 use PepipostLib\Servers;
+use Unirest\HttpClient;
 use Unirest\Request;
 
 /**
@@ -62,10 +64,10 @@ class SendController extends BaseController
 
         //prepare headers
         $_headers = array (
-            'user-agent'    => BaseController::USER_AGENT,
-            'Accept'        => 'application/json',
-            'content-type'  => 'application/json; charset=utf-8',
-            'api_key' => Configuration::$apiKey
+            'user-agent'   => BaseController::USER_AGENT,
+            'Accept'       => 'application/json',
+            'content-type' => 'application/json; charset=utf-8',
+            'api_key'      => Configuration::$apiKey
         );
 
         //json encode body
@@ -78,10 +80,18 @@ class SendController extends BaseController
         }
 
         //and invoke the API call request to fetch the response
-        $response = Request::post($_queryUrl, $_headers, $_bodyJson);
+        $request = new Request\Request(
+            $_queryUrl,
+            RequestMethod::POST,
+            $_headers,
+            $_bodyJson
+        );
 
-        $_httpResponse = new HttpResponse($response->code, $response->headers, $response->raw_body);
-        $_httpContext = new HttpContext($_httpRequest, $_httpResponse);
+        $client   = new HttpClient();
+        $response = $client->execute($request);
+
+        $_httpResponse = new HttpResponse($response->getStatusCode(), $response->getHeaders(), $response->getRawBody());
+        $_httpContext  = new HttpContext($_httpRequest, $_httpResponse);
 
         //call on-after Http callback
         if ($this->getHttpCallBack() != null) {
@@ -89,13 +99,13 @@ class SendController extends BaseController
         }
 
         //Error handling using HTTP status codes
-        if ($response->code == 405) {
+        if ($response->getStatusCode() == 405) {
             throw new APIException('Invalid input', $_httpContext);
         }
 
         //handle errors defined at the API level
         $this->validateResponse($_httpResponse, $_httpContext);
 
-        return $response->body;
+        return $response->getBody();
     }
 }
